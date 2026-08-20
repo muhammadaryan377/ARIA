@@ -1,0 +1,246 @@
+{
+  "templates": {
+    "bar": {
+      "label": "Bar",
+      "when": "Compare a category against a numeric value (top ranked).",
+      "shapes": [
+        { "shape": "category_numeric", "priority": 8 },
+        { "shape": "category_counts", "priority": 7 }
+      ],
+      "config": {
+        "type": "bar",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "plugins": { "legend": { "display": false } },
+          "scales": { "y": { "beginAtZero": true } }
+        }
+      }
+    },
+    "bar_horizontal": {
+      "label": "Horizontal Bar",
+      "when": "Rank categories with long labels or many items.",
+      "shapes": [
+        { "shape": "category_numeric", "priority": 4 },
+        { "shape": "category_counts", "priority": 5 }
+      ],
+      "config": {
+        "type": "bar",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "indexAxis": "y",
+          "plugins": { "legend": { "display": false } },
+          "scales": { "x": { "beginAtZero": true } }
+        }
+      }
+    },
+    "bar_stacked": {
+      "label": "Stacked Bar",
+      "when": "Break a total into its components across categories.",
+      "shapes": [
+        { "shape": "category_numeric_multi", "priority": 9 }
+      ],
+      "config": {
+        "type": "bar",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "plugins": { "legend": { "position": "top" } },
+          "scales": {
+            "x": { "stacked": true },
+            "y": { "stacked": true, "beginAtZero": true }
+          }
+        }
+      }
+    },
+    "line": {
+      "label": "Line / Trend",
+      "when": "Show how a numeric value changes over time.",
+      "shapes": [
+        { "shape": "datetime_numeric", "priority": 10 },
+        { "shape": "category_numeric", "priority": 3 },
+        { "shape": "numeric_numeric", "priority": 2 }
+      ],
+      "config": {
+        "type": "line",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "elements": { "line": { "tension": 0.3 } },
+          "plugins": { "legend": { "display": true } }
+        }
+      }
+    },
+    "area": {
+      "label": "Area",
+      "when": "Emphasize magnitude of change over time.",
+      "shapes": [
+        { "shape": "datetime_numeric", "priority": 5 }
+      ],
+      "config": {
+        "type": "line",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "elements": { "line": { "tension": 0.3 } },
+          "fill": true,
+          "plugins": { "legend": { "display": false } }
+        }
+      }
+    },
+    "combo": {
+      "label": "Combo (Line + Bar)",
+      "when": "Compare two numeric trends on a dual axis over time.",
+      "shapes": [
+        { "shape": "datetime_numeric_multi", "priority": 9 },
+        { "shape": "datetime_numeric", "priority": 4 }
+      ],
+      "config": {
+        "type": "bar",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "plugins": { "legend": { "position": "top" } },
+          "scales": {
+            "y": { "type": "linear", "position": "left", "beginAtZero": true },
+            "y1": { "type": "linear", "position": "right", "grid": { "drawOnChartArea": false } }
+          }
+        }
+      }
+    },
+    "scatter": {
+      "label": "Scatter",
+      "when": "Explore the relationship between two numeric columns.",
+      "shapes": [
+        { "shape": "numeric_numeric", "priority": 9 }
+      ],
+      "config": {
+        "type": "scatter",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "plugins": { "legend": { "display": false } },
+          "elements": { "point": { "radius": 4 } }
+        }
+      }
+    },
+    "bubble": {
+      "label": "Bubble",
+      "when": "Show three numeric dimensions: x, y and bubble size.",
+      "shapes": [
+        { "shape": "numeric_numeric_numeric", "priority": 9 }
+      ],
+      "config": {
+        "type": "bubble",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "plugins": { "legend": { "display": false } }
+        }
+      }
+    },
+    "pie": {
+      "label": "Pie / Share",
+      "when": "Show each category's share of a total (few categories).",
+      "shapes": [
+        { "shape": "share", "priority": 9 },
+        { "shape": "category_low_card", "priority": 8 }
+      ],
+      "config": {
+        "type": "pie",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "plugins": { "legend": { "position": "right" } }
+        }
+      }
+    },
+    "doughnut": {
+      "label": "Doughnut",
+      "when": "Show each category's share of a total (ring style).",
+      "shapes": [
+        { "shape": "share", "priority": 6 },
+        { "shape": "category_low_card", "priority": 6 }
+      ],
+      "config": {
+        "type": "doughnut",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "plugins": { "legend": { "position": "right" } }
+        }
+      }
+    },
+    "polar_area": {
+      "label": "Polar Area",
+      "when": "Compare shares of several categories with magnitude.",
+      "shapes": [
+        { "shape": "share", "priority": 3 }
+      ],
+      "config": {
+        "type": "polarArea",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "plugins": { "legend": { "position": "right" } }
+        }
+      }
+    },
+    "radar": {
+      "label": "Radar",
+      "when": "Compare multiple numeric dimensions across a few categories.",
+      "shapes": [
+        { "shape": "category_numeric_multi", "priority": 5 }
+      ],
+      "config": {
+        "type": "radar",
+        "palette": ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "plugins": { "legend": { "position": "top" } },
+          "scales": { "r": { "beginAtZero": true } }
+        }
+      }
+    },
+    "histogram": {
+      "label": "Histogram",
+      "when": "Show the distribution of a single numeric column.",
+      "shapes": [
+        { "shape": "distribution", "priority": 9 }
+      ],
+      "config": {
+        "type": "bar",
+        "palette": ["#38bdf8"],
+        "options": {
+          "responsive": true,
+          "maintainAspectRatio": false,
+          "plugins": { "legend": { "display": false } },
+          "scales": { "y": { "beginAtZero": true } }
+        }
+      }
+    },
+    "kpi_card": {
+      "label": "KPI Card",
+      "when": "Headline numbers for a single glance.",
+      "shapes": [],
+      "config": {
+        "type": "kpi_card",
+        "palette": ["#38bdf8"],
+        "options": {}
+      }
+    }
+  }
+}

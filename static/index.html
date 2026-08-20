@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ARIA — Testing UI</title>
+<style>
+  :root {
+    --bg: #0f172a; --panel: #1e293b; --panel2: #334155; --border: #475569;
+    --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8; --ok: #34d399; --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+         background: var(--bg); color: var(--text); }
+  header { padding: 18px 28px; border-bottom: 1px solid var(--border); background: var(--panel);
+          display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  main { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px 28px; align-items: start; }
+  section.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); margin: 0 0 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
+  input, select, textarea { width: 100%; padding: 7px 9px; background: var(--panel2); color: var(--text);
+         border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+  button { margin-top: 12px; padding: 8px 14px; background: var(--accent); color: #0f172a; border: none;
+         border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+  .status { margin-top: 10px; font-size: 12px; color: var(--muted); white-space: pre-wrap; }
+  .status.ok { color: var(--ok); } .status.err { color: #f87171; }
+  .flex { display: flex; gap: 8px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--panel2);
+          font-size: 11px; color: var(--muted); margin: 2px 3px 0 0; }
+  .badge.tb { background: #164e63; color: #7dd3fc; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  .scroll { max-height: 340px; overflow: auto; }
+  .suggestion { cursor: pointer; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+         margin: 6px 0; background: var(--panel2); font-size: 13px; transition: border-color .15s; }
+  .suggestion:hover { border-color: var(--accent); }
+  .story { background: var(--panel2); border-left: 3px solid var(--accent); padding: 10px 12px;
+         border-radius: 6px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+  .hidden { display: none; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-top: 10px; }
+  .metric { background: var(--panel2); padding: 10px; border-radius: 8px; }
+  .metric b { display: block; font-size: 16px; color: var(--accent); }
+  .metric span { font-size: 11px; color: var(--muted); }
+  .hypothesis { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: 13px; }
+  .hypothesis .tag { font-size: 11px; color: var(--accent); }
+  .pred_table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  .pred_table th, .pred_table td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--border); }
+  .pred_table th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+  pre.sql { background: #0b1220; border: 1px solid var(--border); padding: 10px; border-radius: 6px;
+         font-size: 12px; overflow: auto; color: #7dd3fc; }
+  canvas.chart { background: var(--panel2); border-radius: 8px; margin-top: 10px; }
+  .provider-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+         cursor: pointer; background: var(--panel2); transition: border-color .15s; }
+  .provider-card.selected { border-color: var(--accent); background: #164e63; }
+  .provider-card h3 { margin: 0 0 4px; font-size: 13px; color: var(--text); }
+  .provider-card p { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .src-btn { margin-top: 0; padding: 8px 10px; font-size: 12px; flex: 1; }
+  .src-btn.active { background: var(--accent); color: #0f172a; }
+  #relational_form input { margin-bottom: 2px; }
+  #login_screen { position: fixed; inset: 0; background: var(--bg); display: flex;
+          align-items: center; justify-content: center; z-index: 100; }
+  .login-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+          padding: 26px; width: 320px; }
+  .login-card h2 { margin: 0 0 4px; }
+  .login-card p { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+  #user_bar { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .history-item { cursor: pointer; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+          margin: 6px 0; background: var(--panel2); font-size: 12px; }
+  .history-item:hover { border-color: var(--accent); }
+  .history-item .when { color: var(--muted); font-size: 11px; }
+  .history-detail h2 { margin-top: 14px; }
+  .readonly-banner { border: 1px solid #fbbf24; background: #451a03; color: #fde68a;
+          border-radius: 8px; padding: 8px 10px; font-size: 12px; margin: 10px 0; }
+  .badge.score-90 { background: #064e3b; color: #6ee7b7; }
+  .badge.score-75 { background: #1e3a8a; color: #93c5fd; }
+  .badge.score-50 { background: #78350f; color: #fcd34d; }
+  .badge.score-low { background: #7f1d1d; color: #fca5a5; }
+  .badge.flag { background: #7f1d1d; color: #fecaca; }
+  .badge.ambig { background: #78350f; color: #fde68a; }
+  .badge.ok { background: #064e3b; color: #6ee7b7; }
+  .drift-item { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px;
+          padding: 8px 10px; margin: 6px 0; font-size: 12px; }
+  .drift-item .t { color: var(--accent); font-weight: 600; }
+  .drift-item .bad { color: #f87171; }
+  .drift-item .good { color: #34d399; }
+  .graph-node { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: 12px; }
+  .graph-node .name { color: var(--accent); font-weight: 600; font-size: 13px; }
+  .graph-node .edge { color: var(--muted); margin: 1px 0; font-size: 11px; }
+  .graph-node .edge b { color: var(--text); font-weight: 500; }
+</style>
+</head>
+<body>
+<div id="login_screen">
+  <div class="login-card">
+    <h2>ARIA</h2>
+    <p>Sign in to access your saved analyses. New here? Register an account.</p>
+    <label>Username</label>
+    <input id="login_user" autocomplete="username" />
+    <label>Password</label>
+    <input id="login_pass" type="password" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter')authAction('login')" />
+    <div class="flex" style="gap:8px;align-items:center">
+      <button onclick="authAction('login')" style="margin-top:14px">Login</button>
+      <button class="secondary" onclick="authAction('register')" style="margin-top:14px">Register</button>
+    </div>
+    <div class="status" id="login_status"></div>
+    <div id="mobile_login_note" class="readonly-banner hidden"></div>
+  </div>
+</div>
+
+<header>
+  <div>
+    <h1>ARIA — Agentic Reasoning for Intelligent Analytics</h1>
+    <p>Testing UI · Schema Agent → Goal Agent → Insight Agent · local LLMs via Ollama (SQLCoder / Mistral)</p>
+  </div>
+  <div id="user_bar" class="hidden">
+    <span id="user_name" style="color:var(--muted);font-size:13px"></span>
+    <button class="secondary" onclick="logout()" style="margin:0;padding:5px 10px">Logout</button>
+  </div>
+</header>
+
+<main>
+  <!-- Left column -->
+  <div>
+    <section class="panel">
+      <h2>1 · LLM Backend</h2>
+      <div id="provider_box">
+        <div class="spinner">Loading providers...</div>
+      </div>
+      <div id="provider_config" style="display:none;margin-top:8px">
+        <label>Base URL</label><input id="llm_base_url" placeholder="https://api.cerebras.ai/v1" />
+        <label>API Key</label><input id="llm_api_key" type="password" placeholder="OPENAI_COMPAT_API_KEY" />
+      </div>
+      <div id="provider_context" class="status" style="margin-top:8px"></div>
+    </section>
+
+    <section class="panel">
+      <h2>2 · Data Source</h2>
+      <div id="source_box" style="display:flex;gap:8px">
+        <button class="src-btn active" id="src_relational" onclick="chooseSource('relational')">Relational DB (PostgreSQL / MySQL)</button>
+        <button class="src-btn" id="src_semi" onclick="chooseSource('semi-structured')">CSV / PDF</button>
+      </div>
+      <div id="source_context" class="status" style="margin-top:8px"></div>
+
+      <div id="relational_form">
+        <label>Database Type</label>
+        <select id="db_type" onchange="onDbTypeChange()">
+          <option value="postgresql">PostgreSQL</option>
+          <option value="mysql">MySQL</option>
+        </select>
+        <label>Host</label><input id="db_host" value="localhost" />
+        <label>Port</label><input id="db_port" value="5432" />
+        <label>Database</label><input id="db_name" placeholder="northwind" />
+        <label>User</label><input id="db_user" placeholder="postgres" />
+        <label>Password</label><input id="db_password" type="password" />
+        <label>Schema</label><input id="db_schema" value="public" />
+      </div>
+
+      <div id="csv_form" style="display:none">
+        <label>File (only .csv and .pdf are accepted; PDFs must be tabular reports)</label>
+        <input type="file" id="csv_file" accept=".csv,text/csv,.pdf,application/pdf" />
+        <div class="status" id="csv_status">Choose a CSV or PDF file, then click Connect.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>3 · Connect</h2>
+      <button onclick="connectDb()" id="btn_connect">Connect</button>
+      <div class="status" id="connect_status"></div>
+    </section>
+
+    <section class="panel">
+      <h2>4 · Extract Schema</h2>
+      <button onclick="extractSchema()" id="btn_schema">Run Schema Agent</button>
+      <div class="status" id="schema_status"></div>
+    </section>
+
+    <section class="panel">
+      <h2>5 · Suggested Searches</h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px">
+        The LLM analyses your tables and suggests what you can search for.
+      </p>
+      <button onclick="getSuggestions()" id="btn_suggest">Get Suggestions</button>
+      <div id="suggestions_box" style="margin-top:10px"></div>
+    </section>
+  </div>
+
+  <!-- Right column -->
+  <div style="display:grid;gap:16px">
+    <section class="panel">
+      <h2>Schema Overview</h2>
+      <div id="schema_box" class="scroll"></div>
+    </section>
+
+    <section class="panel">
+      <h2>6 · Ask a Goal (Natural Language)</h2>
+      <div class="flex">
+        <input id="goal_input" placeholder="e.g. Show total sales by customer" onkeydown="if(event.key==='Enter')askGoal()" />
+        <button onclick="askGoal()" id="btn_ask" style="white-space:nowrap">Ask</button>
+      </div>
+      <div class="status" id="ask_status"></div>
+      <div id="ask_box" class="hidden" style="margin-top:10px">
+        <h2 style="margin-top:14px">Processed Data</h2>
+        <div id="ask_meta"></div>
+        <div class="scroll"><table id="data_table"></table></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>7 · Generate Insights</h2>
+      <button onclick="generateInsight()" id="btn_insight">Run Insight Agent</button>
+      <div class="status" id="insight_status"></div>
+      <div id="insight_box" class="hidden" style="margin-top:12px"></div>
+    </section>
+
+    <section class="panel" id="history_panel">
+      <h2>My History</h2>
+      <div class="flex">
+        <button onclick="loadHistory()" id="btn_history" style="margin:0">Refresh</button>
+        <span class="status" id="history_mode" style="margin:0"></span>
+      </div>
+      <div id="history_list" class="scroll" style="margin-top:10px;max-height:320px">
+        <div class="status">No analyses yet.</div>
+      </div>
+      <div id="history_detail" class="history-detail hidden" style="margin-top:12px"></div>
+    </section>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const state = { provider: "local", sourceType: "relational", username: null };
+let PROVIDER_META = {};
+const IS_MOBILE = /Android|iPhone|iPad|iPod|Windows Phone|Mobile|IEMobile|Silk/i.test(navigator.userAgent) && navigator.maxTouchPoints > 0;
+let TOKEN = localStorage.getItem("aria_token") || null;
+const setStatus = (id, msg, ok = null) => {
+  const el = $(id);
+  el.textContent = msg;
+  el.className = "status" + (ok === true ? " ok" : ok === false ? " err" : "");
+};
+function authHeaders(extra = {}) {
+  if (TOKEN) extra["Authorization"] = "Bearer " + TOKEN;
+  return extra;
+}
+async function api(path, body) {
+  const opts = body === undefined ? { headers: authHeaders() } : {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body)
+  };
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { TOKEN = null; localStorage.removeItem("aria_token"); showLogin(); }
+  if (!res.ok) {
+    const err = new Error(data.detail || ("HTTP " + res.status));
+    err.suggestions = data.suggestions || [];
+    throw err;
+  }
+  return data;
+}
+function disable(id) { $(id).disabled = true; }
+function enable(id) { $(id).disabled = false; }
+
+function showLogin() {
+  $("login_screen").style.display = "flex";
+  $("user_bar").classList.add("hidden");
+  if (IS_MOBILE) {
+    const n = $("mobile_login_note");
+    n.classList.remove("hidden");
+    n.textContent = "Mobile view is read-only: you can sign in to view your saved history, but connecting sources and running analyses are disabled here.";
+  }
+}
+function showApp(username) {
+  state.username = username;
+  $("login_screen").style.display = "none";
+  $("user_bar").classList.remove("hidden");
+  $("user_name").textContent = username;
+  if (IS_MOBILE) applyMobileMode();
+  loadHistory();
+}
+async function authAction(action) {
+  const username = $("login_user").value.trim();
+  const password = $("login_pass").value;
+  if (!username || !password) { setStatus("login_status", "Enter a username and password.", false); return; }
+  setStatus("login_status", action === "login" ? "Signing in..." : "Creating account...");
+  try {
+    const r = await fetch("/api/auth/" + action, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || ("HTTP " + r.status));
+    TOKEN = data.token;
+    localStorage.setItem("aria_token", TOKEN);
+    $("login_pass").value = "";
+    showApp(data.username);
+  } catch (e) { setStatus("login_status", String(e.message), false); }
+}
+function logout() {
+  TOKEN = null;
+  localStorage.removeItem("aria_token");
+  state.username = null;
+  showLogin();
+}
+function applyMobileMode() {
+  ["btn_connect", "btn_schema", "btn_suggest", "btn_ask", "btn_insight"].forEach(id => {
+    const el = $(id); if (el) el.disabled = true;
+  });
+  const banner = document.createElement("div");
+  banner.className = "readonly-banner";
+  banner.textContent = "Read-only mobile mode: viewing your saved history. Use a desktop browser to connect sources and run new analyses.";
+  document.querySelector("main").prepend(banner);
+}
+async function init() {
+  try { await loadProviders(); } catch (e) {}
+  if (TOKEN) {
+    try {
+      const me = await api("/api/auth/me");
+      showApp(me.username);
+      loadHistory();
+      return;
+    } catch (e) { /* invalid token -> fall through to login */ }
+  }
+  showLogin();
+}
+async function loadHistory() {
+  const list = $("history_list");
+  const mode = $("history_mode");
+  try {
+    const r = await api("/api/history");
+    mode.textContent = r.mode === "read-only" ? "read-only (mobile)" : "full access";
+    mode.className = "status" + (r.mode === "read-only" ? " err" : " ok");
+    if (!r.items.length) { list.innerHTML = '<div class="status">No analyses yet.</div>'; return; }
+    list.innerHTML = r.items.map(h =>
+      `<div class="history-item" onclick="viewHistory(${h.id})">
+         <div>${h.goal}</div>
+         <div class="when">${h.row_count} rows · ${h.db_name || ""} · ${h.has_insights ? "with insights" : "no insights"} · ${new Date(h.created_at).toLocaleString()}</div>
+       </div>`).join("");
+  } catch (e) {
+    list.innerHTML = `<div class="status err">${e.message}</div>`;
+  }
+}
+async function viewHistory(id) {
+  const box = $("history_detail");
+  box.classList.remove("hidden");
+  box.innerHTML = '<div class="status">Loading...</div>';
+  try {
+    const r = await api("/api/history/" + id);
+    const rec = r.record;
+    let html = `<h2>${rec.goal}</h2>`;
+    html += `<div class="badge">${rec.source_type || ""} · ${rec.db_name || ""}</div>`;
+    html += `<div class="badge">${rec.row_count} rows</div>`;
+    html += `<div class="badge">${new Date(rec.created_at).toLocaleString()}</div>`;
+    if (rec.sql_used) html += `<pre class="sql">${rec.sql_used}</pre>`;
+    box.innerHTML = html;
+    if (rec.processed && rec.processed.data) {
+      const h = document.createElement("h2"); h.textContent = "Processed Data";
+      box.appendChild(h);
+      const sc = document.createElement("div"); sc.className = "scroll";
+      const t = document.createElement("table");
+      renderTable(t, rec.columns, rec.processed.data.slice(0, 50));
+      sc.appendChild(t); box.appendChild(sc);
+    }
+    if (rec.insights) {
+      const h = document.createElement("h2"); h.textContent = "Insights";
+      box.appendChild(h);
+      renderInsightsInto(rec.insights, box);
+    } else {
+      const h = document.createElement("h2"); h.textContent = "Insights";
+      box.appendChild(h);
+      const d = document.createElement("div"); d.className = "status"; d.textContent = "No insights were generated for this analysis.";
+      box.appendChild(d);
+    }
+  } catch (e) {
+    box.innerHTML = `<div class="status err">${e.message}</div>`;
+  }
+}
+function renderInsightsInto(ins, target) {
+  const container = document.createElement("div");
+  if (ins.business_story) {
+    const d = document.createElement("div"); d.className = "story"; d.textContent = ins.business_story;
+    container.appendChild(d);
+  }
+  if (ins.kpis && ins.kpis.length) {
+    const h = document.createElement("h2"); h.textContent = "KPIs"; h.style.marginTop = "14px";
+    container.appendChild(h);
+    const m = document.createElement("div"); m.className = "metrics";
+    ins.kpis.forEach(k => {
+      const c = document.createElement("div"); c.className = "metric";
+      c.innerHTML = `<b>${k.mean}</b><span>${k.column} · mean · ${k.count} rows</span>
+                     <div style="font-size:11px;color:var(--muted)">min ${k.min} · max ${k.max} · std ${k.std}</div>`;
+      m.appendChild(c);
+    });
+    container.appendChild(m);
+  }
+  const charts = (ins.dashboard || []).filter(s => s.chart_type && s.chart_type !== "kpi_card");
+  if (charts.length) {
+    const h = document.createElement("h2"); h.textContent = "Charts"; h.style.marginTop = "14px";
+    container.appendChild(h);
+    charts.slice(0, 8).forEach(s => container.appendChild(renderChartSpec(s)));
+  }
+  renderPredictionsInto(ins, container);
+  renderPrescriptionsInto(ins, container);
+  target.appendChild(container);
+}
+
+async function loadProviders() {
+  try {
+    const r = await api("/api/providers");
+    PROVIDER_META = r.providers || {};
+    const box = $("provider_box");
+    box.innerHTML = Object.entries(PROVIDER_META).map(([key, p]) =>
+      `<div class="provider-card ${key === state.provider ? "selected" : ""}" id="card_${key}" onclick="chooseProvider('${key}')">
+         <h3>${p.label}</h3><p>${p.privacy}</p></div>`).join("");
+    showProviderContext();
+  } catch (e) {
+    $("provider_box").innerHTML = `<div class="status err">${e.message}</div>`;
+  }
+}
+function chooseProvider(key) {
+  state.provider = key;
+  document.querySelectorAll(".provider-card").forEach(c => c.classList.remove("selected"));
+  const card = $("card_" + key);
+  if (card) card.classList.add("selected");
+  const cfg = $("provider_config");
+  if (cfg) cfg.style.display = (key === "openai_compat") ? "" : "none";
+  showProviderContext();
+}
+function showProviderContext() {
+  const ctx = document.getElementById("provider_context");
+  const meta = PROVIDER_META[state.provider];
+  if (state.provider === "local") {
+    ctx.textContent = "You chose LOCAL. Data stays on your machine, but generation is slower.";
+  } else if (meta) {
+    ctx.textContent = `You chose ${meta.label}. ${meta.privacy}`;
+  }
+  ctx.className = "status" + (state.provider === "local" ? " ok" : " err");
+}
+
+async function confirmProviderSwitch(reason, statusId) {
+  if (state.provider !== "local") return;
+  const target = state.provider === "local" ? "cloud" : state.provider;
+  const meta = PROVIDER_META[target] || {};
+  const ok = window.confirm(
+    reason + `\n\nSwitch to ${meta.label || target} now? ${meta.privacy || "Your data will be sent to a hosted API."}`
+  );
+  if (!ok) { setStatus(statusId, "Stayed on LOCAL as requested — nothing was sent to a hosted API.", true); return false; }
+  try {
+    const body = { provider: target };
+    if (target === "openai_compat") {
+      const bu = $("llm_base_url"), ak = $("llm_api_key");
+      if (bu && bu.value.trim()) body.base_url = bu.value.trim();
+      if (ak && ak.value.trim()) body.api_key = ak.value.trim();
+    }
+    const r = await api("/api/provider/switch", body);
+    state.provider = r.provider;
+    chooseProvider(r.provider);
+    setStatus(statusId, `Switched to ${meta.label || r.provider}.`, true);
+    return true;
+  } catch (e) {
+    setStatus(statusId, String(e.message), false);
+    return false;
+  }
+}
+
+function chooseSource(type) {
+  state.sourceType = type;
+  $("src_relational").classList.toggle("active", type === "relational");
+  $("src_semi").classList.toggle("active", type === "semi-structured");
+  const ctx = $("source_context");
+  if (type === "semi-structured") {
+    ctx.textContent = "File selected. Only .csv and tabular .pdf are accepted.";
+    ctx.className = "status ok";
+    $("relational_form").style.display = "none";
+    $("csv_form").style.display = "block";
+  } else {
+    ctx.textContent = "Relational database selected. This routes to the Schema Agent.";
+    ctx.className = "status ok";
+    $("relational_form").style.display = "block";
+    $("csv_form").style.display = "none";
+  }
+}
+
+function onDbTypeChange() {
+  const t = $("db_type").value;
+  $("db_port").value = t === "mysql" ? "3306" : "5432";
+  $("db_user").placeholder = t === "mysql" ? "root" : "postgres";
+  $("db_schema").value = t === "mysql" ? "" : "public";
+  $("db_schema").disabled = t === "mysql";
+}
+
+async function connectDb() {
+  disable("btn_connect");
+  setStatus("connect_status", "Connecting...");
+  try {
+    if (state.sourceType === "semi-structured") {
+      const fileInput = $("csv_file");
+      if (!fileInput.files || !fileInput.files.length) {
+        setStatus("connect_status", "Please choose a CSV file first.", false);
+        enable("btn_connect");
+        return;
+      }
+      const file = fileInput.files[0];
+      if (!/\.(csv|pdf)$/i.test(file.name)) {
+        setStatus("connect_status", "Only .csv and .pdf files are accepted.", false);
+        enable("btn_connect");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("provider", state.provider);
+      fd.append("file", file);
+      if (state.provider === "openai_compat") {
+        if ($("llm_base_url").value.trim()) fd.append("llm_base_url", $("llm_base_url").value.trim());
+        if ($("llm_api_key").value.trim()) fd.append("llm_api_key", $("llm_api_key").value.trim());
+      }
+      const res = await fetch("/api/connect_file", { method: "POST", headers: authHeaders(), body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || ("HTTP " + res.status));
+      setStatus("connect_status", `Loaded ${data.file} (${data.rows} rows across ${data.tables ? Object.keys(data.tables).length : 1} table(s)) · ${data.provider}`, true);
+    } else {
+      const body = {
+        provider: state.provider,
+        source_type: state.sourceType,
+        db_type: $("db_type").value,
+        host: $("db_host").value, port: Number($("db_port").value), db: $("db_name").value,
+        user: $("db_user").value, password: $("db_password").value, db_schema: $("db_schema").value
+      };
+      if (state.provider === "openai_compat") {
+        if ($("llm_base_url").value.trim()) body.llm_base_url = $("llm_base_url").value.trim();
+        if ($("llm_api_key").value.trim()) body.llm_api_key = $("llm_api_key").value.trim();
+      }
+      const r = await api("/api/connect", body);
+      if (state.sourceType === "semi-structured") {
+        setStatus("connect_status", `${r.provider} · ${r.source_type} routed to ${r.routed_to}. ${r.note}`, true);
+      } else {
+        setStatus("connect_status", `Connected to ${r.database} (schema ${r.schema}) · ${r.provider}`, true);
+        await extractSchema();
+      }
+    }
+  } catch (e) {
+    const msg = String(e.message);
+    setStatus("connect_status", msg, false);
+    if (/cloud|openai|hosted/i.test(msg) && state.provider === "local") {
+      const box = $("connect_status");
+      if (box && !document.getElementById("btn_switch_cloud")) {
+        const b = document.createElement("button");
+        b.id = "btn_switch_cloud";
+        b.className = "btn";
+        b.textContent = "Switch to hosted provider (confirm first)";
+        b.onclick = () => confirmProviderSwitch(msg, "connect_status");
+        box.appendChild(b);
+      }
+    }
+  }
+  enable("btn_connect");
+}
+
+let lastExtract = null;
+
+async function extractSchema() {
+  disable("btn_schema");
+  setStatus("schema_status", "Extracting schema...");
+  try {
+    const r = await api("/api/extract_schema", {});
+    lastExtract = r;
+    renderSchemaReport(r);
+    getSuggestions();
+  } catch (e) { setStatus("schema_status", String(e.message), false); }
+  enable("btn_schema");
+}
+
+function renderSchemaReport(r) {
+  const el = $("schema_status");
+  let h = `<div style="font-size:12px;color:var(--text);line-height:1.7">`;
+  h += `<b style="color:var(--accent);font-size:13px">${r.database}</b><br>`;
+  h += `Tables in DB: <b>${r.total_db_tables}</b> &middot; Used: <b>${r.tables_used}</b>`;
+  if (r.tables_dropped_empty && r.tables_dropped_empty.length > 0) {
+    h += `<br>Dropped (empty): <b style="color:#f87171">${r.tables_dropped_empty.join(", ")}</b>`;
+  }
+  h += `<br>Primary Keys: <b>${r.tables_with_pk.length}</b> tables have PK`;
+  if (r.tables_without_pk && r.tables_without_pk.length > 0) {
+    h += `<br>No PK: <b style="color:#f87171">${r.tables_without_pk.join(", ")}</b>`;
+  }
+  h += `<br><br><b>Declared FKs (${r.declared_relationships}):</b><br>`;
+  if (r.declared_fk_list && r.declared_fk_list.length > 0) {
+    r.declared_fk_list.forEach(fk => { h += `<span style="color:var(--muted)">${fk.from}</span> → <span style="color:var(--muted)">${fk.to}</span><br>`; });
+  } else { h += `(none)<br>`; }
+  h += `<b>Inferred FKs (${r.inferred_relationships}):</b><br>`;
+  if (r.inferred_fk_list && r.inferred_fk_list.length > 0) {
+    r.inferred_fk_list.forEach(fk => {
+      const score = fk.confidence_score;
+      let scoreBadge = "";
+      if (score !== null && score !== undefined) {
+        const cls = score >= 80 ? "score-90" : score >= 60 ? "score-75" : score >= 40 ? "score-50" : "score-low";
+        scoreBadge = `<span class="badge ${cls}">${score}</span>`;
+      }
+      let flags = "";
+      if (fk.ambiguous) flags += `<span class="badge ambig" title="Two candidate tables had near-identical evidence">ambiguous</span>`;
+      if (fk.review_status === "flagged" || fk.review_status === "review") flags += `<span class="badge flag">${fk.review_status}</span>`;
+      if (fk.relationship_state) flags += `<span class="badge ${fk.relationship_state === 'CONFIRMED' ? 'ok' : fk.relationship_state === 'PROBABLE' ? 'ambig' : 'flag'}">${fk.relationship_state}</span>`;
+      if (fk.self_referencing) flags += `<span class="badge ambig">self-ref</span>`;
+      h += `<div style="margin:3px 0">`;
+      h += `<span style="color:var(--muted)">${fk.from}</span> → <span style="color:var(--muted)">${fk.to}</span> `;
+      h += `<span style="color:var(--ok)">[${fk.confidence}]</span> ${scoreBadge} ${flags}`;
+      if (fk.relationship_type) h += `<span class="badge">${fk.relationship_type}</span>`;
+      if (fk.cardinality) h += `<span class="badge">${fk.cardinality}</span>`;
+      h += `<br>`;
+      if (fk.evidence_detail) {
+        const d = fk.evidence_detail;
+        h += `<span style="color:#888;font-size:11px">name:${d.name_match} · type:${d.datatype_match} · unique:${d.target_unique} · overlap:${d.value_overlap == null ? "n/a" : Math.round(d.value_overlap * 100) + "%"} · null:${d.null_rate == null ? "n/a" : Math.round(d.null_rate * 100) + "%"}</span>`;
+      } else if (fk.evidence && fk.evidence.length) h += `<span style="color:#888;font-size:11px">${fk.evidence.join(" · ")}</span>`;
+      if (fk.note) h += `<span style="color:#888;font-size:11px">${fk.note}</span>`;
+      h += `</div>`;
+    });
+  } else { h += `(none)<br>`; }
+  if (r.drift) {
+    h += `<br><b style="color:#fbbf24">Schema Drift (vs previous run):</b><br>`;
+    if (r.drift.has_changes) {
+      if (r.drift.new_tables && r.drift.new_tables.length) h += `<span class="drift-item"><span class="t">NEW TABLES:</span> <span class="good">${r.drift.new_tables.join(", ")}</span></span>`;
+      if (r.drift.removed_tables && r.drift.removed_tables.length) h += `<span class="drift-item"><span class="t">REMOVED TABLES:</span> <span class="bad">${r.drift.removed_tables.join(", ")}</span></span>`;
+      if (r.drift.columns_added) Object.entries(r.drift.columns_added).forEach(([t, cols]) => { if (cols.length) h += `<span class="drift-item"><span class="t">${t} +cols:</span> <span class="good">${cols.join(", ")}</span></span>`; });
+      if (r.drift.columns_removed) Object.entries(r.drift.columns_removed).forEach(([t, cols]) => { if (cols.length) h += `<span class="drift-item"><span class="t">${t} -cols:</span> <span class="bad">${cols.join(", ")}</span></span>`; });
+      if (r.drift.datatypes_changed) Object.entries(r.drift.datatypes_changed).forEach(([t, chg]) => { if (Object.keys(chg).length) h += `<span class="drift-item"><span class="t">${t} type:</span> ${Object.entries(chg).map(([c, v]) => `${c} ${v.from}→${v.to}`).join(", ")}</span>`; });
+      if (r.drift.relationships_inferred_added && r.drift.relationships_inferred_added.length) h += `<span class="drift-item"><span class="t">+RELATIONS:</span> <span class="good">${r.drift.relationships_inferred_added.map(x => x.join(".")).join(", ")}</span></span>`;
+      if (r.drift.relationships_inferred_removed && r.drift.relationships_inferred_removed.length) h += `<span class="drift-item"><span class="t">-RELATIONS:</span> <span class="bad">${r.drift.relationships_inferred_removed.map(x => x.join(".")).join(", ")}</span></span>`;
+    } else {
+      h += `<span class="status ok">No changes since the previous run.</span>`;
+    }
+  }
+  if (r.llm_reasoning) {
+    const lr = r.llm_reasoning;
+    h += `<br><b style="color:#c084fc">LLM Cross-Verification</b><br>`;
+    h += `<span style="color:var(--muted)">Provider:</span> ${lr.provider || "?"} &middot; <span style="color:var(--muted)">Model:</span> ${lr.model || "?"}<br>`;
+    if (lr.generated_at) h += `<span style="color:var(--muted)">Generated:</span> ${lr.generated_at}<br>`;
+  }
+  h += `</div>`;
+  el.innerHTML = h;
+  el.className = "status ok";
+  loadSchema();
+}
+
+async function loadSchema() {
+  const box = $("schema_box");
+  try {
+    const s = await api("/api/schema");
+    let html = "";
+    const tables = Object.entries(s.tables || {});
+    for (const [name, info] of tables) {
+      const cols = (info.columns || []).map(c => c.column || c).join(", ");
+      const pk = (info.primary_key || []).join(", ");
+      html += `<div class="badge tb">${name}</div>`;
+      html += `<div style="font-size:12px;color:var(--muted);margin:2px 0 10px">${cols}${pk ? " · PK: " + pk : ""}</div>`;
+    }
+    const edges = (s.relationship_edges || []);
+    html += `<h2 style="margin-top:12px">Relationships (${edges.length})</h2>`;
+    edges.slice(0, 40).forEach(e => {
+      html += `<div class="badge">${e.source_table}.${e.source_column} → ${e.target_table}.${e.target_column} [${e.type}]</div>`;
+    });
+    if (s.relationship_graph) {
+      html += `<h2 style="margin-top:12px">Relationship Graph</h2>`;
+      Object.entries(s.relationship_graph).forEach(([t, node]) => {
+        html += `<div class="graph-node"><span class="name">${t}</span>`;
+        if (node.primary_key && node.primary_key.length) html += ` <span class="badge tb">PK: ${node.primary_key.join(", ")}</span>`;
+        (node.outgoing_relationships || []).forEach(e => {
+          const amb = e.ambiguous ? ` <span class="badge ambig">amb</span>` : "";
+          html += `<div class="edge">→ <b>${e.target_table}.${e.target_column}</b> <span class="badge">${e.cardinality || ""}</span><span class="badge">${e.confidence || ""}</span>${amb}</div>`;
+        });
+        (node.incoming_relationships || []).forEach(e => {
+          html += `<div class="edge">← <b>${e.source_table}.${e.source_column}</b> <span class="badge">${e.confidence || ""}</span></div>`;
+        });
+        if (node.many_to_many && node.many_to_many.length) {
+          html += `<div class="edge">M:N via <b>${node.many_to_many.map(j => j.junction_table).join(", ")}</b></div>`;
+        }
+        html += `</div>`;
+      });
+    }
+    box.innerHTML = html || "No tables found.";
+  } catch (e) { box.textContent = "No schema extracted yet."; }
+}
+
+async function getSuggestions() {
+  const box = $("suggestions_box");
+  box.innerHTML = '<div class="status">Generating suggestions with Mistral...</div>';
+  try {
+    const r = await api("/api/suggestions", { limit: 8 });
+    box.innerHTML = r.suggestions.map(s =>
+      `<div class="suggestion" onclick="useSuggestion(this)">${s}</div>`).join("");
+  } catch (e) {
+    box.innerHTML = `<div class="status err">${e.message}</div>`;
+  }
+}
+function useSuggestion(el) { $("goal_input").value = el.textContent; }
+
+const questionSuggestions = [
+  "Show total sales by category",
+  "Which product has the highest revenue?",
+  "List the top customers by total value",
+  "What is the average order value by region?"
+];
+
+function showQuestionSuggestions(message) {
+  $("suggestions_box").innerHTML = `
+    <div class="status err">${message}</div>
+    ${questionSuggestions.map(s => `<div class="suggestion" onclick="useSuggestion(this)">${s}</div>`).join("")}
+  `;
+}
+
+function validateGoalInput(goal) {
+  const cleaned = goal.trim();
+  if (!cleaned) return "Please write a valid business question.";
+  if (cleaned.split(/\s+/).length < 2) return "Please write a valid business question. Try: 'Show total sales by category'.";
+
+  const lower = cleaned.toLowerCase();
+  const keywords = [
+    "show", "find", "which", "what", "summarize", "compare", "analyze", "list",
+    "total", "count", "average", "top", "trend", "sales", "revenue", "orders",
+    "products", "customers", "employees", "supplier", "suppliers", "region",
+    "country", "category", "by", "for", "over", "how", "many"
+  ];
+
+  if (!keywords.some(k => lower.includes(k))) {
+    return "Please write a valid business question. Try one of the examples below.";
+  }
+
+  return "";
+}
+
+async function askGoal() {
+  const goal = $("goal_input").value;
+  const validationError = validateGoalInput(goal);
+  if (validationError) {
+    showQuestionSuggestions(validationError);
+    setStatus("ask_status", validationError, false);
+    return;
+  }
+  disable("btn_ask");
+  setStatus("ask_status", "Running Goal Agent...");
+  try {
+    const r = await api("/api/ask", { goal });
+    $("ask_box").classList.remove("hidden");
+    setStatus("ask_status", `Done. ${r.row_count} rows returned.`, true);
+    $("ask_meta").innerHTML =
+      `<div class="badge">KPI: ${(r.kpi_alignment?.kpis || []).map(k => k.description).join(", ") || "auto"}</div>` +
+      `<div class="badge">Join path: ${(r.join_path || []).join(" → ") || "n/a"}</div>` +
+      `<div class="badge">Columns: ${(r.columns || []).join(", ")}</div>` +
+      `<pre class="sql">${r.sql_used}</pre>`;
+    if (r.message) {
+      const warn = document.createElement("div");
+      warn.className = "status err";
+      warn.textContent = r.message;
+      $("ask_meta").appendChild(warn);
+      setStatus("ask_status", r.message, false);
+    }
+    if (r.preprocessing && (r.preprocessing.nulls_filled || r.preprocessing.dropped_empty_columns.length || r.preprocessing.dropped_empty_rows)) {
+      const note = document.createElement("div");
+      note.className = "status ok";
+      note.textContent = (r.preprocessing.notes || []).join(" ");
+      $("ask_meta").appendChild(note);
+    }
+    renderTable($("data_table"), r.columns, r.data);
+  } catch (e) {
+    showQuestionSuggestions(String(e.message));
+    setStatus("ask_status", String(e.message), false);
+  }
+  enable("btn_ask");
+}
+
+function renderTable(tbl, cols, rows) {
+  if (!cols || !cols.length) { tbl.innerHTML = "<tr><td>No data</td></tr>"; return; }
+  let html = "<tr>" + cols.map(c => `<th>${c}</th>`).join("") + "</tr>";
+  html += (rows || []).map(r =>
+    "<tr>" + cols.map(c => `<td>${r[c] === null || r[c] === undefined ? "" : r[c]}</td>`).join("") + "</tr>"
+  ).join("");
+  tbl.innerHTML = html;
+}
+
+async function generateInsight() {
+  disable("btn_insight");
+  setStatus("insight_status", "Running Insight Agent...");
+  try {
+    const r = await api("/api/insight", {});
+    $("insight_box").classList.remove("hidden");
+    setStatus("insight_status", "Insights generated.", true);
+    renderInsights(r.insights);
+  } catch (e) { setStatus("insight_status", String(e.message), false); }
+  enable("btn_insight");
+}
+
+function renderInsights(ins) {
+  const box = $("insight_box");
+  box.innerHTML = "";
+
+  if (ins.business_story) {
+    const d = document.createElement("div");
+    d.className = "story";
+    d.textContent = ins.business_story;
+    box.appendChild(d);
+  }
+
+  if (ins.kpis && ins.kpis.length) {
+    const h = document.createElement("h2");
+    h.textContent = "KPIs";
+    h.style.marginTop = "14px";
+    box.appendChild(h);
+    const m = document.createElement("div");
+    m.className = "metrics";
+    ins.kpis.forEach(k => {
+      const c = document.createElement("div");
+      c.className = "metric";
+      c.innerHTML = `<b>${k.mean}</b><span>${k.column} · mean · ${k.count} rows</span>
+                     <div style="font-size:11px;color:var(--muted)">min ${k.min} · max ${k.max} · std ${k.std}</div>`;
+      m.appendChild(c);
+    });
+    box.appendChild(m);
+  }
+
+  if (ins.hypotheses && ins.hypotheses.length) {
+    const h = document.createElement("h2");
+    h.textContent = "Ranked Hypotheses";
+    h.style.marginTop = "14px";
+    box.appendChild(h);
+    ins.hypotheses.forEach((hyp, i) => {
+      const d = document.createElement("div");
+      d.className = "hypothesis";
+      d.innerHTML = `<span class="tag">#${i + 1} · ${hyp.confidence} · score ${hyp.score}</span>
+                     <div>${hyp.hypothesis}</div>
+                     <div style="font-size:11px;color:var(--muted)">${hyp.basis}</div>`;
+      box.appendChild(d);
+    });
+  }
+
+  if (ins.trends && ins.trends.length) {
+    const h = document.createElement("h2");
+    h.textContent = "Trends";
+    h.style.marginTop = "14px";
+    box.appendChild(h);
+    ins.trends.forEach(t => {
+      const d = document.createElement("div");
+      d.className = "hypothesis";
+      d.innerHTML = `${t.columns.join(", ")} trending <b>${t.direction}</b> along ${t.dimension}
+                     (change ${t.pct_change}%)`;
+      box.appendChild(d);
+    });
+  }
+
+  if (ins.anomalies && ins.anomalies.length) {
+    const h = document.createElement("h2");
+    h.textContent = "Anomalies";
+    h.style.marginTop = "14px";
+    box.appendChild(h);
+    ins.anomalies.slice(0, 10).forEach(a => {
+      const d = document.createElement("div");
+      d.className = "hypothesis";
+      d.innerHTML = `${a.column} row ${a.row} = ${a.value} (z-score ${a.z_score})`;
+      box.appendChild(d);
+    });
+  }
+
+  // Interactive charts rendered from the chart template config in the spec.
+  const charts = (ins.dashboard || []).filter(s => s.chart_type && s.chart_type !== "kpi_card");
+  if (charts.length) {
+    const h = document.createElement("h2");
+    h.textContent = "Charts";
+    h.style.marginTop = "14px";
+    box.appendChild(h);
+    charts.slice(0, 8).forEach(s => box.appendChild(renderChartSpec(s)));
+  }
+
+  renderPredictionsInto(ins, box);
+  renderPrescriptionsInto(ins, box);
+}
+
+const CHART_PALETTE = ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#2dd4bf", "#facc15", "#60a5fa", "#fb7185"];
+
+function renderPredictionsInto(ins, container) {
+  const p = ins.predictions;
+  if (!p) return;
+  const h = document.createElement("h2"); h.textContent = "Prediction"; h.style.marginTop = "14px";
+  container.appendChild(h);
+  if (!p.points || !p.points.length) {
+    if (p.reason && p.reliability !== "not_applicable") {
+      const warn = document.createElement("div");
+      warn.className = "status err";
+      warn.textContent = `Prediction unavailable — ${p.reason}`;
+      container.appendChild(warn);
+    } else if (p.reason) {
+      const note = document.createElement("div");
+      note.className = "status";
+      note.textContent = `Prediction: not applicable for this question — ${p.reason}`;
+      container.appendChild(note);
+    }
+    return;
+  }
+  if (p.valid === false) {
+    const warn = document.createElement("div");
+    warn.className = "status err";
+    warn.textContent = `Not shown — backtest accuracy ${p.accuracy_pct == null ? "could not be measured" : p.accuracy_pct + "%"} is below the ${p.validation && p.validation.threshold_pct != null ? p.validation.threshold_pct : 70}% validation threshold, so this forecast is not reliable enough to act on.`;
+    container.appendChild(warn);
+    return;
+  }
+  const note = document.createElement("div");
+  note.className = "status " + (p.reliability === "excellent" || p.reliability === "good" ? "ok" : "");
+  let txt = `${p.column} · ${p.period || "period"} · ${p.horizon} period(s) ahead · method: ${p.method}`;
+  if (p.accuracy_pct != null) txt += ` · backtest accuracy ${p.accuracy_pct}% (${p.reliability})`;
+  else txt += ` · ${p.reason || "insufficient data for a reliable forecast"}`;
+  note.textContent = txt;
+  container.appendChild(note);
+  const t = document.createElement("table");
+  t.className = "pred_table";
+  t.innerHTML = "<tr><th>Period</th><th>Forecast</th><th>95% low</th><th>95% high</th></tr>" +
+    p.points.map(pt => `<tr><td>${pt.label}</td><td>${pt.value}</td><td>${pt.lower95}</td><td>${pt.upper95}</td></tr>`).join("");
+  container.appendChild(t);
+  if (p.projected_pct_change != null && p.last_actual) {
+    const d = document.createElement("div"); d.className = "hypothesis";
+    d.innerHTML = `Projected change vs last actual (${p.last_actual.value}): <b>${p.projected_pct_change}%</b>`;
+    container.appendChild(d);
+  }
+}
+
+function renderPrescriptionsInto(ins, container) {
+  const pr = ins.prescriptions;
+  if (!pr || !pr.actions || !pr.actions.length) return;
+  const h = document.createElement("h2"); h.textContent = "Recommended Actions"; h.style.marginTop = "14px";
+  container.appendChild(h);
+  const ul = document.createElement("ol");
+  pr.actions.forEach(a => { const li = document.createElement("li"); li.textContent = a; ul.appendChild(li); });
+  container.appendChild(ul);
+}
+
+function renderChartSpec(spec) {
+  const tpl = spec.template || {};
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `<h3 style="font-size:13px;margin:12px 0 4px">${spec.title}</h3>`;
+  const holder = document.createElement("div");
+  holder.style.position = "relative";
+  holder.style.height = "300px";
+  wrap.appendChild(holder);
+  const canvas = document.createElement("canvas");
+  holder.appendChild(canvas);
+
+  // Prefer the ready-to-render Chart.js config embedded by the backend. This lets
+  // the chart library grow without any client-side code changes.
+  if (spec.config) {
+    new Chart(canvas, spec.config);
+    return wrap;
+  }
+
+  // Legacy fallback for old payloads without an embedded config.
+  const type = spec.chart_type || tpl.type || "bar";
+  const palette = tpl.palette || CHART_PALETTE;
+  const labels = spec.labels || [];
+  const rawDatasets = spec.datasets || [];
+
+  const datasets = [];
+  if (type === "pie" || type === "doughnut") {
+    datasets.push({
+      label: spec.y,
+      data: (rawDatasets[0] && rawDatasets[0].data) || [],
+      backgroundColor: palette,
+      borderColor: "#1e293b",
+      borderWidth: 1,
+    });
+  } else if (type === "scatter") {
+    const values = (rawDatasets[0] && rawDatasets[0].data) || [];
+    datasets.push({
+      label: spec.y,
+      data: labels.map((l, i) => ({ x: l, y: values[i] })),
+      backgroundColor: palette[0],
+    });
+  } else {
+    rawDatasets.forEach((ds, i) => {
+      datasets.push({
+        label: ds.label,
+        data: ds.data,
+        backgroundColor: type === "line" ? palette[i % palette.length] + "33" : palette,
+        borderColor: palette[i % palette.length],
+        borderWidth: 2,
+        ...(type === "line" ? { fill: true, tension: 0.3 } : {}),
+      });
+    });
+  }
+
+  const config = {
+    type,
+    data: { labels, datasets },
+    options: Object.assign({ responsive: true, maintainAspectRatio: false }, tpl.options || {}),
+  };
+  new Chart(canvas, config);
+  return wrap;
+}
+
+init();
+</script>
+</body>
+</html>
