@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from core.config import STATIC_DIR  # noqa: E402
 from core.checks import run_checks  # noqa: E402
 from llm_provider import PROVIDERS  # noqa: E402
-from api import auth_routes, connect_routes, query_routes, schema_routes  # noqa: E402
+from api import auth_routes, connect_routes, insight_rag_routes, query_routes, schema_routes  # noqa: E402
 
 app = FastAPI(title="ARIA Testing UI")
 
@@ -39,6 +39,7 @@ app.include_router(auth_routes.router)
 app.include_router(connect_routes.router)
 app.include_router(schema_routes.router)
 app.include_router(query_routes.router)
+app.include_router(insight_rag_routes.router)
 
 
 @app.exception_handler(Exception)
