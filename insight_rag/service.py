@@ -55,12 +55,20 @@ def _to_provider_messages(messages) -> list[dict]:
     ]
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 class InsightPDFRAG:
     """PDF retrieval capability owned by an existing `InsightAgent` instance.
 
-    `insight_agent.llm` must be the cloud provider.  The capability does not
-    introduce a fifth agent; it simply extends Insight Agent with document
-    understanding and conversational retrieval.
+    `insight_agent.llm` must be the cloud provider. The capability does not
+    introduce a fifth agent; it extends Insight Agent with document
+    understanding, hybrid retrieval and conversational memory.
     """
 
     def __init__(self, *, insight_agent, user_id: str | int):
@@ -97,10 +105,11 @@ class InsightPDFRAG:
             raise ValueError("Uploaded PDF is empty.")
         if size_bytes > MAX_PDF_MB * 1024 * 1024:
             raise ValueError(f"PDF is larger than the current {MAX_PDF_MB} MB limit.")
-        if path.read_bytes()[:5] != b"%PDF-":
-            raise ValueError("The uploaded file does not appear to be a valid PDF.")
+        with path.open("rb") as handle:
+            if handle.read(5) != b"%PDF-":
+                raise ValueError("The uploaded file does not appear to be a valid PDF.")
 
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        digest = _sha256_file(path)
         existing = self.metadata.find_by_sha256(digest)
         if existing:
             return {"ok": True, "duplicate": True, "document": existing}
@@ -195,42 +204,121 @@ class InsightPDFRAG:
         except Exception:
             return question
 
-    @staticmethod
-    def _rerank(question: str, candidates: list[tuple[Document, float]]) -> list[Document]:
-        """Fast local reranking: dense rank + lexical overlap + table intent boost.
+    def _lexical_candidates(self, question: str, document_ids: list[str]) -> list[Document]:
+        """Retrieve exact/keyword matches from cached chunks without another service.
 
-        We deliberately avoid an additional cloud reranker request because the
-        project prioritises low conversational latency.
+        This complements vector search for IDs, dates, names and table labels.
+        It is deliberately simple and local so it adds very little latency.
+        """
+        query_tokens = _tokenize(question)
+        lowered = question.lower()
+        ranked = []
+
+        for document_id in document_ids:
+            for doc in self.metadata.load_chunks(document_id):
+                content_lower = doc.page_content.lower()
+                doc_tokens = _tokenize(doc.page_content)
+                overlap = len(query_tokens & doc_tokens) / max(1, len(query_tokens))
+
+                # Reward exact multi-character tokens and phrases, useful for
+                # invoice IDs, years, product codes and table headers.
+                exact_hits = sum(1 for token in query_tokens if len(token) >= 4 and token in content_lower)
+                phrase_boost = 0.35 if len(lowered) >= 6 and lowered in content_lower else 0.0
+                table_boost = 0.08 if doc.metadata.get("content_type") == "table" else 0.0
+                score = overlap + min(0.45, exact_hits * 0.07) + phrase_boost + table_boost
+                if score > 0:
+                    ranked.append((score, doc))
+
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        return [doc for _, doc in ranked[:RETRIEVAL_FETCH_K]]
+
+    @staticmethod
+    def _hybrid_rrf(
+        question: str,
+        dense_candidates: list[tuple[Document, float]],
+        lexical_candidates: list[Document],
+    ) -> list[Document]:
+        """Merge dense + lexical retrieval with Reciprocal Rank Fusion.
+
+        A lightweight lexical-overlap and table-intent boost is applied after
+        RRF to improve table/numeric questions without adding another LLM call.
         """
         query_tokens = _tokenize(question)
         lowered = question.lower()
         table_intent = any(word in lowered for word in _TABLE_INTENT_WORDS)
-        scored = []
-        seen = set()
+        scores: dict[str, float] = {}
+        docs_by_id: dict[str, Document] = {}
+        rrf_k = 60.0
 
-        for dense_rank, (doc, _distance) in enumerate(candidates, start=1):
-            chunk_id = str(doc.metadata.get("chunk_id", ""))
-            if chunk_id and chunk_id in seen:
-                continue
-            if chunk_id:
-                seen.add(chunk_id)
+        for rank, (doc, _distance) in enumerate(dense_candidates, start=1):
+            chunk_id = str(doc.metadata.get("chunk_id") or f"dense-{rank}")
+            docs_by_id[chunk_id] = doc
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (rrf_k + rank)
 
+        for rank, doc in enumerate(lexical_candidates, start=1):
+            chunk_id = str(doc.metadata.get("chunk_id") or f"lexical-{rank}")
+            docs_by_id[chunk_id] = doc
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (rrf_k + rank)
+
+        for chunk_id, doc in docs_by_id.items():
             doc_tokens = _tokenize(doc.page_content)
             overlap = len(query_tokens & doc_tokens) / max(1, len(query_tokens))
-            dense_component = 1.0 / dense_rank
-            table_boost = 0.18 if table_intent and doc.metadata.get("content_type") == "table" else 0.0
-            scored.append((dense_component + (0.75 * overlap) + table_boost, doc))
+            scores[chunk_id] += 0.006 * overlap
+            if table_intent and doc.metadata.get("content_type") == "table":
+                scores[chunk_id] += 0.003
 
-        scored.sort(key=lambda item: item[0], reverse=True)
-        return [doc for _, doc in scored[:RETRIEVAL_TOP_K]]
+        ranked_ids = sorted(scores, key=scores.get, reverse=True)
+        return [docs_by_id[chunk_id] for chunk_id in ranked_ids[:RETRIEVAL_TOP_K]]
 
-    def _retrieve(self, question: str, document_ids: list[str] | None) -> list[Document]:
-        candidates = UserPGVectorStore(self.user_id).search(
+    def _expand_table_siblings(self, docs: list[Document]) -> list[Document]:
+        """If a table chunk is retrieved, include sibling chunks from that table.
+
+        Large tables are split by rows during ingestion. This expansion prevents
+        an aggregate/comparison question from seeing only one slice of a table.
+        """
+        result = []
+        seen = set()
+        table_keys = set()
+
+        for doc in docs:
+            chunk_id = str(doc.metadata.get("chunk_id", ""))
+            if chunk_id not in seen:
+                result.append(doc)
+                seen.add(chunk_id)
+            if doc.metadata.get("content_type") == "table":
+                table_keys.add(
+                    (
+                        str(doc.metadata.get("document_id")),
+                        int(doc.metadata.get("page", 0) or 0),
+                        int(doc.metadata.get("table_index", 0) or 0),
+                    )
+                )
+
+        for document_id, page, table_index in table_keys:
+            for sibling in self.metadata.load_chunks(document_id):
+                metadata = sibling.metadata
+                key = (
+                    str(metadata.get("document_id")),
+                    int(metadata.get("page", 0) or 0),
+                    int(metadata.get("table_index", 0) or 0),
+                )
+                if metadata.get("content_type") != "table" or key != (document_id, page, table_index):
+                    continue
+                chunk_id = str(metadata.get("chunk_id", ""))
+                if chunk_id and chunk_id not in seen:
+                    result.append(sibling)
+                    seen.add(chunk_id)
+        return result
+
+    def _retrieve(self, question: str, document_ids: list[str]) -> list[Document]:
+        dense = UserPGVectorStore(self.user_id).search(
             question,
             k=RETRIEVAL_FETCH_K,
             document_ids=document_ids,
         )
-        return self._rerank(question, candidates)
+        lexical = self._lexical_candidates(question, document_ids)
+        fused = self._hybrid_rrf(question, dense, lexical)
+        return self._expand_table_siblings(fused)
 
     @staticmethod
     def _source_label(index: int) -> str:
@@ -280,6 +368,7 @@ class InsightPDFRAG:
                     "You are ARIA's Insight Agent answering questions about uploaded PDFs. "
                     "Use ONLY the supplied PDF evidence. Do not use outside knowledge. "
                     "Tables are authoritative structured evidence: preserve row/column relationships and do not invent cells. "
+                    "For arithmetic or comparisons, calculate only from values explicitly present in the supplied evidence and show the key values used. "
                     "If the evidence does not support the answer, explicitly say the information was not found in the selected PDF evidence. "
                     "Cite factual statements using the supplied source labels such as [S1] or [S2]. "
                     "When comparing values, state the values and their source. Keep the response concise but complete.",
@@ -354,4 +443,5 @@ class InsightPDFRAG:
             "document_ids": document_ids,
             "retrieved_chunks": len(sources),
             "model": RAG_LLM_MODEL,
+            "retrieval": "hybrid_dense_lexical_rrf",
         }
