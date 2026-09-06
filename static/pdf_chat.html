@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ARIA — Insight PDF Chat</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --panel2:#334155; --border:#475569; --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --ok:#34d399; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:18px 26px; background:var(--panel); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  h1 { margin:0; font-size:20px; } h2 { margin:0 0 12px; font-size:14px; color:var(--accent); text-transform:uppercase; letter-spacing:.05em; }
+  p { color:var(--muted); font-size:13px; }
+  main { display:grid; grid-template-columns:320px 1fr; gap:16px; padding:18px 26px; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:15px; }
+  button { background:var(--accent); color:#0f172a; border:0; border-radius:6px; padding:8px 12px; font-weight:700; cursor:pointer; }
+  button.secondary { background:var(--panel2); color:var(--text); border:1px solid var(--border); }
+  button.danger { background:#7f1d1d; color:#fecaca; }
+  input, textarea { width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:8px 10px; }
+  textarea { min-height:72px; resize:vertical; }
+  .status { margin-top:8px; white-space:pre-wrap; color:var(--muted); font-size:12px; }
+  .status.ok { color:var(--ok); } .status.err { color:#f87171; }
+  .doc { padding:9px; border:1px solid var(--border); border-radius:8px; margin:8px 0; background:var(--panel2); }
+  .doc-top { display:flex; gap:8px; align-items:flex-start; }
+  .doc input { width:auto; margin-top:3px; }
+  .doc-name { font-size:13px; font-weight:700; word-break:break-word; }
+  .doc-meta { color:var(--muted); font-size:11px; margin-top:3px; }
+  .doc-actions { margin-top:7px; }
+  .doc-actions button { padding:4px 8px; font-size:11px; }
+  .chat { min-height:560px; display:flex; flex-direction:column; }
+  #messages { flex:1; max-height:620px; overflow:auto; padding-right:4px; }
+  .msg { margin:10px 0; padding:10px 12px; border-radius:8px; line-height:1.55; white-space:pre-wrap; font-size:13px; }
+  .user { margin-left:12%; background:#164e63; }
+  .assistant { margin-right:8%; background:var(--panel2); border-left:3px solid var(--accent); }
+  .sources { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
+  .source { font-size:11px; color:#bae6fd; background:#0c4a6e; padding:3px 7px; border-radius:999px; }
+  .composer { display:grid; grid-template-columns:1fr auto; gap:8px; margin-top:12px; align-items:end; }
+  .composer button { height:40px; }
+  .pill { display:inline-block; border:1px solid var(--border); color:var(--muted); border-radius:999px; padding:3px 8px; font-size:11px; }
+  @media (max-width:850px) { main { grid-template-columns:1fr; padding:12px; } .chat { min-height:460px; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>ARIA — Insight Agent PDF Chat</h1>
+    <p style="margin:4px 0 0">Text-based PDFs + tables · local BGE embeddings · hybrid retrieval · GPT-OSS-20B on Groq</p>
+  </div>
+  <div>
+    <span class="pill">RAG is part of Insight Agent</span>
+    <button class="secondary" onclick="location.href='/'" style="margin-left:8px">Main ARIA</button>
+  </div>
+</header>
+
+<main>
+  <div>
+    <section class="panel">
+      <h2>Upload PDF</h2>
+      <input id="pdf_file" type="file" accept=".pdf,application/pdf" />
+      <button onclick="uploadPdf()" style="margin-top:10px">Upload & Index</button>
+      <div class="status" id="upload_status"></div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <h2>Your Documents</h2>
+      <p style="margin-top:0">Select the PDFs ARIA should search for this conversation.</p>
+      <div id="documents"></div>
+      <button class="secondary" onclick="loadDocuments()">Refresh</button>
+    </section>
+  </div>
+
+  <section class="panel chat">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+      <h2 style="margin:0">Conversational PDF RAG</h2>
+      <button class="secondary" onclick="newConversation()">New conversation</button>
+    </div>
+    <div class="status" id="chat_status">Upload/select a PDF and ask a grounded question.</div>
+    <div id="messages"></div>
+    <div class="composer">
+      <textarea id="question" placeholder="Ask about the selected PDF(s)…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askPdf();}"></textarea>
+      <button id="ask_btn" onclick="askPdf()">Ask</button>
+    </div>
+  </section>
+</main>
+
+<script>
+const TOKEN = localStorage.getItem('aria_token') || null;
+let conversationId = null;
+let documentCache = [];
+const $ = id => document.getElementById(id);
+
+function authHeaders(extra={}) {
+  const headers = {...extra};
+  if (TOKEN) headers['Authorization'] = `Bearer ${TOKEN}`;
+  return headers;
+}
+function status(id, text, ok=null) {
+  const el = $(id); el.textContent = text; el.className = 'status' + (ok===true?' ok':ok===false?' err':'');
+}
+function esc(text) { return String(text??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function api(path, options={}) {
+  options.headers = authHeaders(options.headers || {});
+  const res = await fetch(path, options);
+  let data = null;
+  try { data = await res.json(); } catch (_) { data = {detail:`HTTP ${res.status}`}; }
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  return data;
+}
+
+async function loadDocuments() {
+  if (!TOKEN) { status('upload_status','Please sign in from the main ARIA page first.',false); return; }
+  try {
+    const data = await api('/api/insight/pdf/documents');
+    documentCache = data.documents || [];
+    renderDocuments();
+  } catch (e) { status('upload_status',e.message,false); }
+}
+
+function renderDocuments() {
+  const box = $('documents');
+  if (!documentCache.length) { box.innerHTML='<p>No indexed PDFs yet.</p>'; return; }
+  box.innerHTML = documentCache.map(doc => `
+    <div class="doc">
+      <div class="doc-top">
+        <input class="doc-check" type="checkbox" value="${esc(doc.document_id)}" checked />
+        <div>
+          <div class="doc-name">${esc(doc.filename)}</div>
+          <div class="doc-meta">${doc.pages||0} pages · ${doc.tables||0} tables · ${doc.total_chunks||0} chunks</div>
+        </div>
+      </div>
+      <div class="doc-actions"><button class="danger" onclick="deletePdf('${esc(doc.document_id)}')">Delete</button></div>
+    </div>`).join('');
+}
+
+async function uploadPdf() {
+  const input = $('pdf_file');
+  if (!input.files.length) { status('upload_status','Choose a PDF first.',false); return; }
+  const form = new FormData(); form.append('file', input.files[0]);
+  status('upload_status','Extracting text/tables and creating local embeddings…');
+  try {
+    const data = await api('/api/insight/pdf/upload',{method:'POST',body:form});
+    const d = data.document || {};
+    status('upload_status', data.duplicate ? `Already indexed: ${d.filename}` : `Indexed ${d.filename}: ${d.pages} pages, ${d.tables} tables, ${d.total_chunks} chunks.`, true);
+    input.value=''; await loadDocuments();
+  } catch(e) { status('upload_status',e.message,false); }
+}
+
+async function deletePdf(id) {
+  if (!confirm('Delete this indexed PDF?')) return;
+  try { await api(`/api/insight/pdf/documents/${encodeURIComponent(id)}`,{method:'DELETE'}); await loadDocuments(); }
+  catch(e) { status('upload_status',e.message,false); }
+}
+
+function selectedDocuments() {
+  return [...document.querySelectorAll('.doc-check:checked')].map(el => el.value);
+}
+function addMessage(role, text, sources=[]) {
+  const box = $('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const sourceHtml = sources.length ? `<div class="sources">${sources.map(s => `<span class="source">${esc(s.source_id)} · ${esc(s.filename)} · p.${esc(s.page)}${s.content_type==='table' ? ` · table ${esc(s.table_index||'')}` : ''}</span>`).join('')}</div>` : '';
+  div.innerHTML = `<div>${esc(text).replace(/\n/g,'<br>')}</div>${sourceHtml}`;
+  box.appendChild(div); box.scrollTop = box.scrollHeight;
+}
+
+async function askPdf() {
+  const q = $('question').value.trim();
+  const docs = selectedDocuments();
+  if (!q) return;
+  if (!docs.length) { status('chat_status','Select at least one PDF.',false); return; }
+  addMessage('user',q); $('question').value=''; $('ask_btn').disabled=true; status('chat_status','Retrieving evidence and asking GPT-OSS-20B…');
+  try {
+    const data = await api('/api/insight/pdf/chat',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({question:q,conversation_id:conversationId,document_ids:docs})
+    });
+    conversationId = data.conversation_id;
+    addMessage('assistant',data.answer,data.sources||[]);
+    status('chat_status',`Hybrid retrieval · ${data.retrieved_chunks||0} evidence chunks · ${data.model}`,true);
+  } catch(e) { addMessage('assistant',`Error: ${e.message}`); status('chat_status',e.message,false); }
+  finally { $('ask_btn').disabled=false; }
+}
+function newConversation() { conversationId=null; $('messages').innerHTML=''; status('chat_status','New conversation started.',true); }
+
+if (!TOKEN) status('upload_status','Please sign in from the main ARIA page first.',false);
+else loadDocuments();
+</script>
+</body>
+</html>
