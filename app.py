@@ -82,6 +82,12 @@ def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/pdf-chat")
+def pdf_chat():
+    """Testing UI for Insight Agent's conversational PDF-RAG capability."""
+    return FileResponse(STATIC_DIR / "pdf_chat.html")
+
+
 @app.get("/api/health")
 def health():
     """Live dependency/health status for ops and the UI."""
