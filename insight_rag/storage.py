@@ -87,6 +87,19 @@ class RAGMetadataStore:
         ]
         _atomic_write(self.chunks_path(document_id), payload)
 
+    def load_chunks(self, document_id: str) -> list[Document]:
+        payload = _read_json(self.chunks_path(document_id), [])
+        documents = []
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("page_content")
+            metadata = item.get("metadata")
+            if not isinstance(content, str) or not isinstance(metadata, dict):
+                continue
+            documents.append(Document(page_content=content, metadata=metadata))
+        return documents
+
     def document_file_path(self, document_id: str) -> Path:
         return self.root / "documents" / f"{document_id}.pdf"
 
