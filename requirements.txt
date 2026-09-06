@@ -1,7 +1,15 @@
 psycopg2-binary
+psycopg[binary]
 pymysql
 python-dotenv
 langgraph
+langchain
+langchain-core
+langchain-text-splitters
+langchain-postgres
+fastembed
+pgvector
+pymupdf
 pandas
 numpy
 sqlalchemy
@@ -12,6 +20,3 @@ uvicorn
 python-multipart
 pdfplumber
 PyJWT
-
-
-
