@@ -13,7 +13,7 @@ from .config import EMBEDDING_MODEL
 class FastBGEEmbeddings(Embeddings):
     """BAAI BGE-small embeddings using FastEmbed/ONNX on CPU.
 
-    The model is downloaded once by FastEmbed and then cached locally.  A single
+    The model is downloaded once by FastEmbed and then cached locally. A single
     model instance is shared per Python process so query-time embedding stays
     fast and does not repeatedly reload model weights.
     """
@@ -52,11 +52,16 @@ class FastBGEEmbeddings(Embeddings):
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        return self._as_lists(self.model.embed(texts))
+        # Retrieval models can use a passage-specific representation. FastEmbed
+        # exposes this directly for BGE and falls back cleanly when unavailable.
+        if hasattr(self.model, "passage_embed"):
+            vectors = self.model.passage_embed(texts)
+        else:
+            vectors = self.model.embed(texts)
+        return self._as_lists(vectors)
 
     def embed_query(self, text: str) -> list[float]:
-        # FastEmbed provides query_embed for retrieval-aware models.  Fall back
-        # to regular embed for compatibility with older FastEmbed versions.
+        # Query-specific embedding improves retrieval for BGE-style models.
         if hasattr(self.model, "query_embed"):
             vectors = self._as_lists(self.model.query_embed(text))
         else:
